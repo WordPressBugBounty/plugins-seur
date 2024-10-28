@@ -36,7 +36,7 @@ function seur_metabox_callback( $post_or_order_object ) {
 	<?php if ( !$has_label ) {
 		$url             = esc_url( admin_url( add_query_arg( array( 'page' => 'seur_get_labels_from_order' ), 'admin.php' ) ) );
 		$arrayiframe     = array(
-            '?TB_iframe' => 'true',
+            'TB_iframe' => 'true',
             'width'      => '400',
             'height'     => '300',
         );
@@ -51,10 +51,10 @@ function seur_metabox_callback( $post_or_order_object ) {
             $final_get_label_url = esc_url( add_query_arg( $arrayurl, $url ) );
             $text = 'Get SEUR'.($k==1?' CHANGE':'').' Label'.($k==1?'s':'');
             ?>
-            <a class='thickbox button btn-seur-label' title='<?php esc_html_e( $text, 'seur' ); ?>'
-               alt='<?php esc_html_e( $text, 'seur' ); ?>'
+            <a class='thickbox button btn-seur-label' title='<?php echo esc_html( $text ); ?>'
+               alt='<?php echo esc_html( $text ); ?>'
                href='<?php echo esc_html( $final_get_label_url ); ?>'>
-                <?php esc_html_e( $text, 'seur' ); ?>
+	            <?php echo esc_html( $text ); ?>
             </a>
             <?php
         }
@@ -70,7 +70,9 @@ function seur_metabox_callback( $post_or_order_object ) {
             $suffix = count($label_ids) > 1 ? (esc_html__('for package', 'seur') . "  {$cont} ") : '';
             $cont++;
             ?>
-            <a href="<?= esc_url( $url_upload_dir ) . '/' . esc_html( $label_file_name ) ?> " class="button btn-seur-label" download> <?= esc_html__( ' See SEUR Label ', 'seur' ) . $suffix ?> </a>
+            <a href="<?php echo esc_url( $url_upload_dir ) . '/' . esc_html( $label_file_name ); ?> " class="button btn-seur-label" download>
+		        <?php echo esc_html__( ' See SEUR Label ', 'seur' ) . esc_html( $suffix ); ?>
+            </a>
             <?php
         }
     } ?>

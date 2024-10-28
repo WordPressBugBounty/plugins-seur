@@ -3,12 +3,12 @@
  * Plugin Name: SEUR Oficial
  * Plugin URI: http://www.seur.com/
  * Description: Add SEUR shipping method to WooCommerce. The SEUR plugin for WooCommerce allows you to manage your order dispatches in a fast and easy way
- * Version: 2.2.12
+ * Version: 2.2.14
  * Author: SEUR Oficial
  * Author URI: http://www.seur.com/
- * Tested up to: 6.2
+ * Tested up to: 6.6.2
  * WC requires at least: 3.0
- * WC tested up to: 7.4
+ * WC tested up to: 9.1.4
  * Text Domain: seur
  * Domain Path: /languages/
  * License: GNU General Public License v3.0
@@ -17,7 +17,7 @@
  * @package Seur Official
  **/
 
-define( 'SEUR_OFFICIAL_VERSION', '2.2.12' );
+define( 'SEUR_OFFICIAL_VERSION', '2.2.14' );
 define( 'SEUR_DB_VERSION', '1.0.4' );
 define( 'SEUR_TABLE_VERSION', '1.0.4' );
 
@@ -139,14 +139,14 @@ function seur_add_notice_new_version() {
 		} else {
 			?>
 			<div id="message" class="updated woocommerce-message woocommerce-seur-messages">
-				<a class="woocommerce-message-close notice-dismiss" style="top:0;" href="<?php echo esc_url( wp_nonce_url( add_query_arg( 'seur-hide-new-version', 'hide-new-version-seur' ), 'seur_hide_new_version_nonce', '_seur_hide_new_version_nonce' ) ); ?>"><?php esc_html_e( 'Dismiss', 'woocommerce-seur' ); ?></a>
+				<a class="woocommerce-message-close notice-dismiss" style="top:0;" href="<?php echo esc_url( wp_nonce_url( add_query_arg( 'seur-hide-new-version', 'hide-new-version-seur' ), 'seur_hide_new_version_nonce', '_seur_hide_new_version_nonce' ) ); ?>"><?php esc_html_e( 'Dismiss', 'seur' ); ?></a>
 				<p>
-					<?php echo esc_html__( 'SEUR has been updated to version', 'woocommerce-seur' ) . ' ' . esc_html( SEUR_OFFICIAL_VERSION ); ?>
+					<?php echo esc_html__( 'SEUR has been updated to version', 'seur' ) . ' ' . esc_html( SEUR_OFFICIAL_VERSION ); ?>
 				</p>
 				<p>
 					<?php
 					// translators: Link to SEUR website with new features.
-					printf( wp_kses( __( 'Discover the improvements that have been made in this version, and how to take advantage of them <a href="%s" target="_blank">here</a>', 'woocommerce-seur' ), array( 'a' => array( 'href' => array() ) ) ), esc_url( SEUR_POST_UPDATE_URL ) );
+					printf( wp_kses( __( 'Discover the improvements that have been made in this version, and how to take advantage of them <a href="%s" target="_blank">here</a>', 'seur' ), array( 'a' => array( 'href' => array() ) ) ), esc_url( SEUR_POST_UPDATE_URL ) );
 					?>
 				</p>
 			</div>
@@ -172,13 +172,13 @@ function seur_add_notice_new_v2() {
 		} else {
 			?>
 			<div id="message" class="updated woocommerce-message woocommerce-seur-messages">
-				<a class="woocommerce-message-close notice-dismiss" style="top:0;" href="<?php echo esc_url( wp_nonce_url( add_query_arg( 'seur-hide-new-v2', 'hide-new-v2-seur' ), 'seur_hide_new_v2_nonce', '_seur_hide_new_v2_nonce' ) ); ?>"><?php esc_html_e( 'Dismiss', 'woocommerce-seur' ); ?></a>
+				<a class="woocommerce-message-close notice-dismiss" style="top:0;" href="<?php echo esc_url( wp_nonce_url( add_query_arg( 'seur-hide-new-v2', 'hide-new-v2-seur' ), 'seur_hide_new_v2_nonce', '_seur_hide_new_v2_nonce' ) ); ?>"><?php esc_html_e( 'Dismiss', 'seur' ); ?></a>
 				<p>
-					<?php echo esc_html__( 'WARNING', 'woocommerce-seur' ); ?>
+					<?php echo esc_html__( 'WARNING', 'seur' ); ?>
 				</p>
 				<p>
 					<?php
-					esc_html_e( 'You need to contact to SEUR for new credentials. Call to +34913228380 or email to staci@seur.net', 'woocommerce-seur' );
+					esc_html_e( 'You need to contact to SEUR for new credentials. Call to +34913228380 or email to staci@seur.net', 'seur' );
 					?>
 				</p>
 			</div>
