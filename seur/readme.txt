@@ -3,7 +3,7 @@ Contributors: seuroficial
 Tags: woocommerce, shipping, seur, logistica, enviar paquete
 Requires at least: 4.0
 Tested up to: 6.6.2
-Stable tag: 2.2.17
+Stable tag: 2.2.18
 WC requires at least: 3.0
 WC tested up to: 9.1.4
 License: GNU General Public License v3.0
@@ -38,8 +38,7 @@ Check the status of your shipments, organise collection at your storage faciliti
 
 = Quick set-up =
 
-[Leave your details here](https://info.notificaciones.e-seur.com/Formulario-Web-Seur). Ask SEUR for your registration details, fill in the configuration form and set the transport rate for your buyers. Trust your shipments to the leading e-commerce logistics partner in just 3 steps.
-
+[Leave your details here](https://info.notificaciones.e-seur.com/Formulario-Web-Seur?ecommerce=checked). Ask SEUR for your registration details, fill in the configuration form and set the transport rate for your buyers. Trust your shipments to the leading e-commerce logistics partner in just 3 steps.
 
 == Installation ==
 
@@ -83,7 +82,7 @@ The "Collection" menu can be used to request collection in the time zone that be
 
 = What is the cargo manifest and how can I generate it? =
 
-The cargo manifest is a record of the packages given to our SEUR agent for delivery; this document can be downloaded in the "SEUR > Shipments" section via the SEUR menu. Remember to print two copies: one for you and one for the driver.
+The cargo manifest is a record of the packages given to our SEUR agent for delivery; this document can be downloaded in the "Manifest" section via the SEUR menu. Remember to print two copies: one for you and one for the driver.
 
 = How can I track my Shipments? =
 
@@ -92,6 +91,11 @@ The "SEUR > Shipments" menu includes the option to track your shipment and see t
 == Screenshots ==
 
 == Changelog ==
+
+== 2.2.18 ==
+
+* ADDED: Regenerate labels if file not found or label type config changed
+* FIXED: ZPL init filesystem 
 
 == 2.2.17 ==
 
