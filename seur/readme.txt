@@ -3,7 +3,7 @@ Contributors: seuroficial
 Tags: woocommerce, shipping, seur, logistica, enviar paquete
 Requires at least: 4.0
 Tested up to: 6.6.2
-Stable tag: 2.2.19
+Stable tag: 2.2.20
 WC requires at least: 3.0
 WC tested up to: 9.1.4
 License: GNU General Public License v3.0
@@ -38,7 +38,7 @@ Check the status of your shipments, organise collection at your storage faciliti
 
 = Quick set-up =
 
-[Leave your details here](https://pub.s7.exacttarget.com/thi131hffjt). Ask SEUR for your registration details, fill in the configuration form and set the transport rate for your buyers. Trust your shipments to the leading e-commerce logistics partner in just 3 steps.
+[Leave your details here](https://info.notificaciones.e-seur.com/Formulario-Web-Seur). Ask SEUR for your registration details, fill in the configuration form and set the transport rate for your buyers. Trust your shipments to the leading e-commerce logistics partner in just 3 steps.
 
 
 == Installation ==
@@ -92,6 +92,14 @@ The "SEUR > Shipments" menu includes the option to track your shipment and see t
 == Screenshots ==
 
 == Changelog ==
+
+== 2.2.20 ==
+
+* CHANGED: Change rates selector query
+* FIXED: Fix local pickup point selection
+* FIXED: Fix install in custom path
+* FIXED: Fix uploads labels path
+* FIXED: Change get_option mixed type to string
 
 == 2.2.19 ==
 
