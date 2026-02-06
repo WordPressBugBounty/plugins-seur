@@ -435,9 +435,8 @@ function seur_bulk_actions_handler( $redirect_to, $doaction, $labels_ids ) {
 
 	} elseif ( 'update_seur_tracking' === $doaction ) {
 
-		foreach ( $labels_ids as $label_id ) {
-			seur_get_tracking_shipment( $label_id );
-		}
+        seur_get_tracking_shipments($labels_ids);
+
 		set_transient( get_current_user_id() . '_seur_label_bulk_tracking', true );
 		$redirect_to = add_query_arg( 'bulk_tracking_seur', count( $labels_ids ), $redirect_to );
 		return $redirect_to;
@@ -495,10 +494,11 @@ function seur_bulk_actions_handler( $redirect_to, $doaction, $labels_ids ) {
 
         foreach ($merchants as $ccc => $orders)
         {
-            $manifest['ccc'] = $ccc;
+            $accountNumber = get_option('seur_accountNumber_field');
+            $manifest['ccc'] = substr( $accountNumber, 0, strpos( $accountNumber, '-' ) );
             $manifest['company'] = get_option( 'seur_empresa_field' );
             $manifest['cif']= get_option( 'seur_nif_field' );
-            $manifest['franchise'] = get_option( 'seur_franquicia_field' );
+            $manifest['franchise'] = substr( $accountNumber, strpos( $accountNumber, '-' ) + 1 );
             $manifest['street_type'] = get_option( 'seur_viatipo_field' );
             $manifest['street_name'] = get_option( 'seur_vianombre_field' );
             $manifest['street_number'] = get_option( 'seur_vianumero_field' );

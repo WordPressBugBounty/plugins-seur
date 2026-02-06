@@ -65,26 +65,22 @@ function seur_settings() {
 			if ( log ) {
 				var switchery = new Switchery(log, { size: 'small' } );
 			}
-			var geolabel = document.querySelector( '.js-switch-geolabel' );
-			if ( geolabel ) {
-				var switchery = new Switchery(geolabel, { size: 'small' } );
-			}
-			var preavisonotificar = document.querySelector( '.js-switch-preavisonotificar' );
-			if ( preavisonotificar ) {
-				var switchery = new Switchery(preavisonotificar, { size: 'small' } );
-			}
-			var repartonotificar = document.querySelector( '.js-switch-repartonotificar' );
-			if ( repartonotificar ) {
-				var switchery = new Switchery(repartonotificar, { size: 'small' } );
-			}
 			var localpickup = document.querySelector( '.js-switch-pickup' );
 			if ( localpickup ) {
 				var switchery = new Switchery(localpickup, { size: 'small' } );
 			}
 			var freeshipping = document.querySelector( '.js-switch-free-shipping' );
-			if ( localpickup ) {
+			if ( freeshipping ) {
 				var switchery = new Switchery(freeshipping, { size: 'small' } );
 			}
+            var updateshipments = document.querySelector( '.js-switch-updateshipments' );
+            if ( updateshipments ) {
+                var switchery = new Switchery(updateshipments, { size: 'small' } );
+            }
+            var returnsUrl = document.querySelector( '.js-switch-returns-url' );
+            if ( returnsUrl ) {
+                var switchery = new Switchery(returnsUrl, { size: 'small' } );
+            }
 		</script>
 	</div>
 	<?php

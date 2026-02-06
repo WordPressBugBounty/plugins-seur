@@ -21,43 +21,83 @@ function seur_after_get_label() {
 	return $return;
 }
 
-// Store cart weight in the database.
-add_action( 'woocommerce_update_order', 'seur_add_cart_weight_hpos' );
-function seur_add_cart_weight_hpos( $order_id )
-{
-    if (WC()->cart && WC()->cart->cart_contents_count > 0) {
-        $order = new WC_Order($order_id);
 
-		$product_name = '';
-        $ship_methods = maybe_unserialize($order->get_shipping_methods());
-        foreach ($ship_methods as $ship_method) {
-            $product_name = $ship_method['name'];
+function seur_recalculate_order_weight( $order_id ) {
+    $order = wc_get_order( $order_id );
+    if ( ! $order ) {
+        return;
+    }
+
+    $total_weight = 0.0;
+    foreach ( $order->get_items() as $item ) {
+        if ( ! $item instanceof WC_Order_Item_Product ) {
+            continue;
         }
+        $product = $item->get_product();
+        if ( ! $product ) {
+            continue;
+        }
+        $qty = (float) $item->get_quantity();
+        $p_w = (float) $product->get_weight(); // Peso del producto (en la unidad configurada en WooCommerce)
+        $total_weight += $p_w * $qty;
+    }
+    $order->update_meta_data( '_seur_cart_weight', $total_weight );
 
-        $products = seur()->get_products();
-        foreach ($products as $code => $product) {
-            $custom_name = get_option($product['field'] . '_custom_name_field') ? get_option($product['field'] . '_custom_name_field') : $code;
+    if ( function_exists( 'seur' ) && is_object( seur() ) && method_exists( seur(), 'slog' ) ) {
+        seur()->slog( sprintf( 'recalculate -> _seur_cart_weight: %s - order: %s', $total_weight, $order_id ) );
+    }
+
+    $order->save_meta_data();
+}
+
+// --- Cuando se modifican líneas en el admin (añadir/quitar/cantidad) ---
+add_action( 'woocommerce_before_save_order_items', function( $order_id ) {
+    seur_recalculate_order_weight( $order_id );
+}, 20, 1 );
+
+add_action( 'woocommerce_order_item_added', function( $item_id, $item, $order_id ) {
+    seur_recalculate_order_weight( $order_id );
+}, 20, 3 );
+
+add_action( 'woocommerce_after_order_item_quantity_update', function( $item, $order_id ) {
+    seur_recalculate_order_weight( $order_id );
+}, 20, 2 );
+
+
+function seur_set_shipping_metas($order) {
+    // Shipping method meta
+    $product_name = '';
+    foreach ($order->get_shipping_methods() as $ship_method) {
+        $product_name = $ship_method['name'];
+        break;
+    }
+    $products = seur()->get_products();
+    foreach ($products as $code => $product) {
+        $custom_name = get_option($product['field'] . '_custom_name_field') ? get_option($product['field'] . '_custom_name_field') : $code;
             if ($custom_name == $product_name) {
                 $order->update_meta_data('_seur_shipping', 'seur');
                 $order->update_meta_data('_seur_shipping_method_service_real_name', $code);
                 $order->update_meta_data('_seur_shipping_method_service', sanitize_title($product_name));
-                break;
-            }
+                $order->save();
+            break;
         }
-
-        $weight = WC()->cart->cart_contents_weight;
+    }
+}
+function seur_set_cart_weight_meta($order) {
+    // Asegura que el carrito está disponible y con contenido
+    if ( WC()->cart && WC()->cart->get_cart_contents_count() > 0 ) {
+        $weight = (float) WC()->cart->get_cart_contents_weight();
         $order->update_meta_data('_seur_cart_weight', $weight);
-        $order->save_meta_data();
+        if ( function_exists('seur') ) {
+            seur()->slog("checkout_create_order -> _seur_cart_weight={$weight} order_id={$order->get_id()}");
+        }
     }
 }
-add_action('woocommerce_checkout_update_order_meta', 'seur_add_cart_weight');
-function seur_add_cart_weight( $order_id ) {
-	global $woocommerce;
-    if ( $woocommerce->cart->cart_contents_count > 0 ) {
-        $weight = $woocommerce->cart->cart_contents_weight;
-        update_post_meta($order_id, '_seur_cart_weight', $weight);
-    }
-}
+// Se ejecuta durante la creación del pedido en el checkout (frontend)
+add_action('woocommerce_checkout_create_order', function( $order, $data ) {
+    seur_set_cart_weight_meta($order);
+    seur_set_shipping_metas($order);
+}, 10, 2);
 
 // Add order new column in administration.
 if (seur_is_wc_order_hpos_enabled()) {
@@ -479,6 +519,17 @@ function seur_shipping_mobil_phone_fields_display_admin_order_meta($order)
         esc_html($order->get_meta('_shipping_mobile_phone', true)) . '</p>';
 }
 
+add_action( 'woocommerce_admin_order_data_after_shipping_address', 'seur_shipping_pudoId_display_admin_order_meta', 10, 1 );
+
+function seur_shipping_pudoId_display_admin_order_meta($order)
+{
+    if ($pudoId = $order->get_meta('_seur_2shop_pudo_id', true)) {
+        echo '<p class="form-field _shipping_mobile_phone_field"><strong>' .
+            esc_html__('SEUR PudoID', 'seur') . ':</strong> ' .
+            esc_html($pudoId) . '</p>';
+    }
+}
+
 function seur_filter_price_rate_weight( $package_price, $raterate, $ratepricerate, $countryrate ) {
 
 	$raterate = seur_get_real_rate_name( $raterate );
@@ -625,3 +676,167 @@ function seur_add_traking_statuses( $wc_statuses_arr ) {
 
 }
 add_filter( 'wc_order_statuses', 'seur_add_traking_statuses' );
+
+add_action('woocommerce_after_order_itemmeta', function( $item_id, $item, $product ){
+    if ( ! $item instanceof WC_Order_Item_Shipping ) {
+        return;
+    }
+    $show_field = false;
+    $target_method = $item->get_name();
+    if (isSeurLocalMethod($target_method)) {
+        $show_field = true;
+    }
+
+    $order_data       = seur_get_order_data( $item->get_order_id() );
+    $pudoId   = $order_data[0]['pudoId_2shop'] ?? ''; // Valor existente (si ya se guardó antes)
+    $country  = $order_data[0]['country'];
+    $city     = $order_data[0]['city'];
+    $postcode = $order_data[0]['postcode'];
+
+    // Contenedor + input; lo dejamos en el DOM siempre y lo ocultamos por JS si cambia el carrier
+    ?>
+    <div class="view" style="<?php echo $show_field ? '' : 'display:none;'; ?>">
+        <label for="pudo_id_<?php echo esc_attr( $item_id ); ?>">
+            <?php esc_html_e( 'PudoID', 'your-textdomain' );
+            echo ': '. $pudoId; ?>
+        </label>
+    </div>
+
+    <div class="edit" id="seur-pudoid-div" style="display:none;">
+        <div class="form-field seur-pudoid-field"
+             data-item-id="<?php echo esc_attr( $item_id ); ?>"
+             data-target-method="<?php echo esc_attr( $target_method ); ?>"
+             style="display:none;">
+            <input type="hidden" name="seur_pudo_id_info" id="seur_pudo_id_info" value=""/>
+            <!-- //NO BORRAR - OPCIÓN DE SELECTOR DE PUDO
+            <select name="seur_pudo_id" id="seur_pudo_id">
+                <option value=""><?php /*esc_html_e('Select Pickup Location', 'your-textdomain'); */?></option>
+                <?php
+                /* $pudo_locations = seur_get_local_pickups($country, $city, $postcode);
+                foreach ( $pudo_locations as $pudo ) {
+                    $selected = ( $pudoId === $pudo['pudoId'] ) ? 'selected' : '';
+                    echo '<option value="' . esc_attr( $pudo['pudoId'] ) . '" ' . $selected . ' data-address-info="'.esc_attr(json_encode($pudo)).'">' .
+                        esc_html( $pudo['company'] . ' (' . $pudo['pudoId'] . ')' ) .
+                        '</option>';
+                }
+                */?>
+            </select>
+            -->
+            <input type="text" value="<?php echo esc_attr( $pudoId ); ?>" name="seur_pudo_id" id="seur_pudo_id" placeholder="Insert Pudo Id" />
+        </div>
+    </div>
+    <?php
+}, 10, 3);
+
+function seur_pudo_id_load()
+{
+    $screen = get_current_screen();
+    if ( empty($screen) || $screen->id !== 'shop_order' ) {
+        return;
+    }
+    ?>
+    <script>
+        jQuery(function($){
+            // delega el evento porque Woo añade filas dinámicamente
+            $(document).on('change', 'select.shipping_method', function(){
+                var methodId = ($(this).val() || '').split(':')[0];
+                console.log('Selected shipping method ID:', methodId);
+                if (methodId == 'seurlocal') {
+                    $('.seur-pudoid-field').show();
+                    $('#seur-pudoid-div').appendTo($('#order_shipping_line_items .edit').first());
+                } else {
+                    $('.seur-pudoid-field').hide();
+                }
+            });
+            $(document).on('change', 'select#seur_pudo_id', function(){
+                $('#seur_pudo_id_info').val($(this).find('option:selected').attr('data-address-info'));
+            });
+            $(document).ready(function(){
+                // disparar el cambio al cargar la página para ajustar la visibilidad
+                $('select.shipping_method').trigger('change');
+                // mover capa pudoid-div detras del primer order_shipping_line_items edit
+                $('#seur-pudoid-div').appendTo($('#order_shipping_line_items .edit').first());
+            });
+
+            // Este evento se dispara cuando la llamada AJAX woocommerce_save_order_items termina correctamente
+            // Se recarga la página para reflejar el cambio de dirección de envío
+            $(document.body).on('items_saved', function(){
+                location.reload();
+            });
+        });
+    </script>
+    <?php
+}
+
+add_action('admin_footer', 'seur_pudo_id_load', 10, 1);
+
+add_action('woocommerce_save_order_items', function( $order_id ){
+
+}, 10, 1);
+
+// === 3) (Opcional) Lógica extra tras guardar los ítems (por ejemplo, sincronizar con tu API)
+add_action('woocommerce_saved_order_items', function( $order_id ){
+    $order = seur_get_order( $order_id );
+    foreach ( $order->get_items('shipping') as $item ) {
+        if ( $item->get_method_id() === 'seurlocal' ) {
+            if ( $item->get_method_title() == '' ) {
+                $item->set_method_title('SEUR 2SHOP');
+                $item->save();
+            }
+        }
+    }
+}, 10, 1);
+
+add_action('wp_ajax_woocommerce_save_order_items', function () {
+    // Misma verificación que hace Woo
+    if ( ! current_user_can('edit_shop_orders') ) {
+        wp_die(-1);
+    }
+
+    $order_id = sanitize_text_field( wp_unslash($_POST['order_id']));
+    if ( ! $order_id ) {
+        wp_die(-1);
+    }
+
+    $items = $_POST['items'];
+    parse_str($items, $data);
+    $pudoID = $data['seur_pudo_id'] ?? null;
+    $pudoInfo = json_decode($data['seur_pudo_id_info'] ?? null, true);
+
+    if ( ! $pudoID  ) { // Si no hay PudoID no hacemos nada
+        return;
+    }
+
+    $order = seur_get_order( $order_id );
+    $order_shipping_item = $order->get_items('shipping');
+    $order_shipping_item = reset( $order_shipping_item ); // Solo hay uno
+    // Actualizamos el método de envío con lo que se envía en el input shipping_method_title
+    $order_shipping_item->set_name( $data['shipping_method_title'][$data['shipping_method_id'][0]] );
+    $order_shipping_item->set_method_title( $data['shipping_method_title'][$data['shipping_method_id'][0]] );
+    $order_shipping_item->save();
+    seur_set_shipping_metas($order); // Marca el pedido con envío SEUR
+
+    require_once SEUR_PLUGIN_PATH  . 'core/woocommerce/includes/class-seur_local_shipping_method.php';
+    $seurLocalMethod = new Seur_Local_Shipping_Method();
+    $seurLocalMethod->pudoId = $pudoID;
+    $seurLocalMethod->orderId = $order_id;
+    if ($pudoInfo) {
+        $seurLocalMethod->depot = $pudoInfo['depot'] ?? '';
+        $seurLocalMethod->postcode = $pudoInfo['post_code'] ?? '';
+        $seurLocalMethod->codCentro = $pudoInfo['codCentro'] ?? '';
+        $seurLocalMethod->title = $pudoInfo['company'] ?? '';
+        $seurLocalMethod->type = $pudoInfo['type'] ?? '';
+        $seurLocalMethod->address = $pudoInfo['address'] ?? '';
+        $seurLocalMethod->city = $pudoInfo['city'] ?? '';
+        $seurLocalMethod->lat = $pudoInfo['lat'] ?? '';
+        $seurLocalMethod->lng = $pudoInfo['lng'] ?? '';
+        $seurLocalMethod->streettype = $pudoInfo['tipovia'] ?? '';
+        $seurLocalMethod->numvia = $pudoInfo['numvia'] ?? '';
+        $seurLocalMethod->timetable = $pudoInfo['timetable'] ?? '';
+    }
+    $seurLocalMethod->save_pudo_data_to_order(); // Guarda el PudoID y la info en los metadatos del pedido
+    if ($pudoInfo) {
+        $seurLocalMethod->save_pudo_address_to_order(); // Guarda la dirección de PUDO en la dirección de envío del pedido
+    }
+    // IMPORTANTE: no terminar la petición; deja que WC_AJAX::save_order_items siga su curso.
+}, 5); // prioridad <10 para ejecutar antes que el handler de Woo

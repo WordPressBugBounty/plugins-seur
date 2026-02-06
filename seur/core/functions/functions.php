@@ -341,9 +341,9 @@ add_action( 'admin_enqueue_scripts', 'seur_get_labels_page_styles_css' );
  * @param string $hook page.
  */
 function seur_nomenclator_styles_css( $hook ) {
-	global $seurnomenclator, $seurmanifest;
+	global $seurnomenclator, $seurmanifest, $seur_pickup_search;
 
-	if ( $seurnomenclator !== $hook && $seurmanifest !== $hook ) {
+	if ( $seurnomenclator !== $hook && $seurmanifest !== $hook && $seur_pickup_search !== $hook ) {
 		return;
 	} else {
 		wp_register_style( 'seurNomenclatorCSS', SEUR_PLUGIN_URL . 'assets/css/seur-nomenclator.css', array(), SEUR_OFFICIAL_VERSION );
@@ -465,11 +465,8 @@ function seur_sanitize_postcode( $postcode, $country = null ) {
  * SEUR get countries.
  */
 function seur_get_countries() {
-	$countries = array();
-	if ( ! $countries ) {
-		$countries = include_once SEUR_PLUGIN_PATH . 'core/places/countries.php';
-	}
-	asort( $countries );
+    $countries = include_once SEUR_PLUGIN_PATH . 'core/places/countries.php';
+    asort( $countries );
 	return $countries;
 }
 
@@ -578,7 +575,7 @@ function seur_get_custom_rates( $output_type = 'OBJECT', $type = 'price' ) {
  * @param string $postcode Post Code.
  * @param string $price Price.
  */
-function seur_show_availables_rates( $country = null, $state = null, $postcode = null, $price_weight = null ) {
+function seur_show_availables_rates( $country = null, $state = null, $postcode = null, $price_weight = null, $local_pickup = false ) {
 
     $country = $country?? '*';
     $state = $state?? '*';
@@ -593,12 +590,12 @@ function seur_show_availables_rates( $country = null, $state = null, $postcode =
         $log->add('seur', '$postcode:' . $postcode);
         $log->add('seur', '$price_weight:' . $price_weight);
     }
-    $ratestoscreen = seur_search_availables_rates( $country, $state, $postcode, $price_weight );
+    $ratestoscreen = seur_search_availables_rates( $country, $state, $postcode, $price_weight, $local_pickup );
 
     return $ratestoscreen;
 }
 
-function seur_search_availables_rates( $country = '*', $state = '*', $postcode = '*', $price_weight = 0 ) {
+function seur_search_availables_rates( $country = '*', $state = '*', $postcode = '*', $price_weight = 0, $local_pickup = false ) {
     global $wpdb;
 
     $type = get_option( 'seur_rates_type_field' ); // 'price' o 'weight', definido en la configuración de SEUR
@@ -640,18 +637,24 @@ function seur_search_availables_rates( $country = '*', $state = '*', $postcode =
             ORDER BY ID ASC;";
     // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- Custom table lookup, no caching applicable, Table name safe and hardcoded and Query prepared in the line above
     $results = $wpdb->get_results(
-
         $wpdb->prepare(
             $sql // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- Query prepared in the line above
             ,$type,
             $type, $country, $state, $price_weight, $price_weight,
             $type, $country, $state, $price_weight, $price_weight,
             $price_weight, $price_weight
-        ), ARRAY_A );
+        ),
+        ARRAY_A
+    );
 
     // Filtrar por código postal
     $filteredResults = array_filter( $results, function ( $row ) use ( $postcode ) {
         return matchPostcode( $postcode, $row['postcode'] );
+    });
+    // Filtar por rate local pickup
+    $filteredResults = array_filter( $filteredResults, function ( $row ) use ( $local_pickup ) {
+        $is_local_pickup = str_ends_with_php7($row['rate'], '2SHOP');
+        return $local_pickup ? $is_local_pickup : !$is_local_pickup;
     });
 
     // Registrar en el log si está activado
@@ -791,21 +794,11 @@ function seur_get_user_settings() {
 	} else {
 		$seur_contacto_apellidos_field = '';
 	}
-	if ( get_option( 'seur_ccc_field' ) ) {
-		$seur_ccc_field = get_option( 'seur_ccc_field' );
-	} else {
-		$seur_ccc_field = '';
-	}
-	if ( get_option( 'seur_int_ccc_field' ) ) {
-		$seur_int_ccc_field = get_option( 'seur_int_ccc_field' );
-	} else {
-		$seur_int_ccc_field = '';
-	}
-	if ( get_option( 'seur_franquicia_field' ) ) {
-		$seur_franquicia_field = get_option( 'seur_franquicia_field' );
-	} else {
-		$seur_franquicia_field = '';
-	}
+    if ( get_option( 'seur_accountNumber_field' ) ) {
+        $accountNumber = get_option( 'seur_accountNumber_field' );
+    } else {
+        $accountNumber = '';
+    }
 	if ( $seur_pais_field ) {
 		if ( 'ES' === $seur_pais_field ) {
 			'España' === $seur_pais_field;
@@ -835,9 +828,7 @@ function seur_get_user_settings() {
 		'email',
 		'contacto_nombre',
 		'contacto_apellidos',
-		'ccc',
-		'int_ccc',
-		'franquicia',
+        'accountNumber',
 	);
 
 	$value                = array(
@@ -857,9 +848,7 @@ function seur_get_user_settings() {
 		$seur_email_field,
 		$seur_contacto_nombre_field,
 		$seur_contacto_apellidos_field,
-		$seur_ccc_field,
-		$seur_int_ccc_field,
-		$seur_franquicia_field,
+        $accountNumber,
 	);
 	$seur_user_settings[] = array_combine( $option, $value );
 
@@ -873,18 +862,6 @@ function seur_get_advanced_settings() {
 
 	$seur_advanced_settings = array();
 
-	if ( get_option( 'seur_preaviso_notificar_field' ) ) {
-		$seur_preaviso_notificar_field = get_option( 'seur_preaviso_notificar_field' );
-	} else {
-		$seur_preaviso_notificar_field = ''; }
-	if ( get_option( 'seur_reparto_notificar_field' ) ) {
-		$seur_reparto_notificar_field = get_option( 'seur_reparto_notificar_field' );
-	} else {
-		$seur_reparto_notificar_field = ''; }
-	if ( get_option( 'seur_tipo_notificacion_field' ) ) {
-		$seur_tipo_notificacion_field = get_option( 'seur_tipo_notificacion_field' );
-	} else {
-		$seur_tipo_notificacion_field = ''; }
 	if ( get_option( 'seur_tipo_etiqueta_field' ) ) {
 		$seur_tipo_etiqueta_field = get_option( 'seur_tipo_etiqueta_field' );
 	} else {
@@ -909,34 +886,22 @@ function seur_get_advanced_settings() {
 		$seur_descripcion_field = get_option( 'seur_descripcion_field' );
 	} else {
 		$seur_descripcion_field = ''; }
-	if ( get_option( 'seur_activate_geolabel_field' ) ) {
-		$seur_activate_geolabel_field = get_option( 'seur_activate_geolabel_field' );
-	} else {
-		$seur_activate_geolabel_field = ''; }
 
     $option = array(
-		'preaviso_notificar',
-		'reparto_notificar',
-		'tipo_notificacion',
 		'tipo_etiqueta',
 		'aduana_origen',
 		'aduana_destino',
 		'tipo_mercancia',
 		'id_mercancia',
 		'descripcion',
-		'geolabel',
 	);
 	$value = array(
-		$seur_preaviso_notificar_field,
-		$seur_reparto_notificar_field,
-		$seur_tipo_notificacion_field,
 		$seur_tipo_etiqueta_field,
 		$seur_aduana_origen_field,
 		$seur_aduana_destino_field,
 		$seur_tipo_mercancia_field,
 		$seur_id_mercancia_field,
 		$seur_descripcion_field,
-		$seur_activate_geolabel_field,
 	);
 
 	$seur_advanced_settings[] = array_combine( $option, $value );
@@ -1324,7 +1289,6 @@ function seur_api_preprare_label_data($order_id, $numpackages = '1', $weight = '
 	$preparedData['date']                     = gmdate( 'd-m-Y' ); // phpcs:ignore WordPress.DateTime.RestrictedFunctions.date_date
 	$preparedData['mobile_shipping']          = cleanPhone($order->get_meta('_shipping_mobile_phone', true ));
 	$preparedData['mobile_billing']           = cleanPhone($order->get_meta('_billing_mobile_phone', true ));
-	$preparedData['log']                      = new WC_Logger();
 
 	// All needed Data return Array.
 	$order_data       = seur_get_order_data( $order_id );
@@ -1355,9 +1319,8 @@ function seur_api_preprare_label_data($order_id, $numpackages = '1', $weight = '
 	$preparedData['contacto_nombre']    = $user_data[0]['contacto_nombre'];
 	$preparedData['contacto_apellidos'] = $user_data[0]['contacto_apellidos'];
 	$preparedData['nif']                = $user_data[0]['nif'];
-	$preparedData['franquicia']         = $user_data[0]['franquicia'];
-	$preparedData['nat_ccc']            = $user_data[0]['ccc'];
-	$preparedData['int_ccc']            = $user_data[0]['int_ccc'];
+    $preparedData['accountNumber']      = $user_data[0]['accountNumber'];
+    $preparedData['ccc']                = substr($user_data[0]['accountNumber'], 0, strpos($user_data[0]['accountNumber'],'-'));
 
 	$paisgl  = $user_data[0]['pais'];
 	if ( 'España' === $paisgl ) {
@@ -1370,55 +1333,12 @@ function seur_api_preprare_label_data($order_id, $numpackages = '1', $weight = '
 	$preparedData['paisgl'] = $paisgl;
 
 	// Advanced User Settings.
-	$preparedData['geolabel']           = $advanced_data[0]['geolabel'];
 	$preparedData['aduana_origen']      = $advanced_data[0]['aduana_origen'];
 	$preparedData['aduana_destino']     = $advanced_data[0]['aduana_destino'];
 	$preparedData['tipo_mercancia']     = $advanced_data[0]['tipo_mercancia'];
 	$preparedData['id_mercancia']       = $advanced_data[0]['id_mercancia'];
 	$preparedData['descripcion']        = $advanced_data[0]['descripcion'];
 	$preparedData['tipo_etiqueta'] 		= $advanced_data[0]['tipo_etiqueta'];
-
-	$preaviso_notificar = $advanced_data[0]['preaviso_notificar']==='1'?'S':'N';
-	$reparto_notificar = $advanced_data[0]['reparto_notificar']==='1'?'S':'N';
-	$tipo_aviso = $advanced_data[0]['tipo_notificacion'];
-
-	$preaviso_sms = 'N';
-	if ( 'SMS' === $tipo_aviso && 'S' === $preaviso_notificar ) {
-		$preaviso_sms = 'S';
-	}
-	$reparto_sms = 'N';
-	if ( 'SMS' === $tipo_aviso && 'S' === $reparto_notificar ) {
-		$reparto_sms = 'S';
-	}
-	$preaviso_email = 'N';
-	if ( 'EMAIL' === $tipo_aviso && 'S' === $preaviso_notificar ) {
-		$preaviso_email = 'S';
-	}
-	$reparto_email = 'N';
-	if ( 'EMAIL' === $tipo_aviso && 'S' === $reparto_notificar ) {
-		$reparto_email = 'S';
-	}
-	if ( 'both' === $tipo_aviso && 'S' === $preaviso_notificar ) {
-		$preaviso_email = 'S';
-		$preaviso_sms   = 'S';
-	} else {
-		$preaviso_email = 'N';
-		$preaviso_sms   = 'N';
-	}
-	if ( 'both' === $tipo_aviso && 'S' === $reparto_notificar ) {
-		$reparto_email = 'S';
-		$reparto_sms   = 'S';
-	} else {
-		$reparto_email = 'N';
-		$reparto_sms   = 'N';
-	}
-	$preparedData['preaviso_notificar'] = $preaviso_notificar;
-	$preparedData['reparto_notificar'] = $reparto_notificar;
-	$preparedData['tipo_aviso'] = $tipo_aviso;
-	$preparedData['preaviso_sms'] = $preaviso_sms;
-	$preparedData['preaviso_email'] = $preaviso_email;
-	$preparedData['reparto_email'] = $reparto_email;
-	$preparedData['reparto_sms'] = $reparto_sms;
 
 	// Customer/Order Data.
 	$preparedData['customer_country'] 	  = $order_data[0]['country'];
@@ -1435,12 +1355,6 @@ function seur_api_preprare_label_data($order_id, $numpackages = '1', $weight = '
 	$preparedData['customer_order_notes'] = seur_clean_data( $order_data[0]['order_notes'] );
 	$preparedData['customer_order_total'] = str_replace( ',', '.', $order_data[0]['order_total'] );
 	$preparedData['order_pay_method']     = seur_clean_data( $order_data[0]['order_pay_method'] );
-
-	if ( 'ES' === $customer_country || 'AD' === $customer_country || 'PT' === $customer_country ) {
-		$preparedData['ccc'] = $preparedData['nat_ccc'];
-	} else {
-		$preparedData['ccc'] = $preparedData['int_ccc'];
-	}
 
 	if ( $post_weight ) {
 		$preparedData['customer_weight_kg'] = seur_always_kg( $weight );
@@ -1510,60 +1424,13 @@ function seur_api_preprare_label_data($order_id, $numpackages = '1', $weight = '
 		}
 	}
 
-	$preaviso_notificar_geo = 'N';
-	if ( 'S' === $preaviso_notificar ) {
-		$preaviso_notificar_geo = 'S';
-	}
-	$reparto_notificar_geo = 'N';
-	if ( 'S' === $reparto_notificar ) {
-		$reparto_notificar_geo = 'S';
-	}
-	$seur_tcheck_geo = '';
-	$seur_sms = 'N';
-	if ( 'S' === $preaviso_sms || 'S' === $reparto_sms ) {
-		$seur_tcheck_geo = '1';
-		$seur_sms = 'S';
-	}
-	$seur_email_geo = '';
-	if ( 'S' === $preaviso_email || 'S' === $reparto_email ) {
-		$seur_email_geo = '3';
-	}
-
-	if ( '1' === $seur_tcheck_geo && '3' === $seur_email_geo ) {
-		$seur_email_geo  = '4';
-		$seur_tcheck_geo = '';
-	}
-
 	$mobile_billing = $preparedData['mobile_billing'];
 	$mobile_shipping = $preparedData['mobile_shipping'];
-	if ( ( $mobile_shipping || $mobile_billing ) ) {
-		$seur_sms_mobile_geo = $mobile_billing;
-		if ( $mobile_shipping ) {
-			$seur_sms_mobile_geo = $mobile_shipping;
-		}
-	} else {
-		$seur_tcheck_geo     = 'N';
-		$seur_sms_mobile_geo = '';
-		$seur_sms            = 'N';
-		$seur_sms_mobile     = '';
-	}
 
 	if ( $order_data[0]['code_centro_2shop'] ) {
-		$reparto_notificar  = 'N';
-		$preaviso_notificar = 'N';
 		$preparedData['seur_email']        = 'N';
 		$preparedData['customer_phone']    = $mobile_billing;
 	}
-	$preparedData['preaviso_notificar_geo'] = $preaviso_notificar_geo;
-	$preparedData['reparto_notificar_geo'] = $reparto_notificar_geo;
-	$preparedData['seur_tcheck_geo'] = $seur_tcheck_geo;
-	$preparedData['seur_email_geo'] = $seur_email_geo;
-	$preparedData['seur_sms_mobile_geo'] = $seur_sms_mobile_geo;
-	$preparedData['seur_sms'] = $seur_sms;
-	$preparedData['seur_sms_mobile'] = $seur_sms_mobile??$seur_sms_mobile_geo;
-	$preparedData['reparto_notificar'] = $reparto_notificar;
-	$preparedData['preaviso_notificar'] = $preaviso_notificar;
-
 	$log->add( 'seur', 'preparedData: ' . print_r( $preparedData, true ) ); // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_print_r
 
 	return $preparedData;
@@ -1698,8 +1565,7 @@ function seur_api_update_shipment($order_id, $new_shipping_address)
         ];
 
         if (!seur()->updateShipment($shipmentData)) {
-            wp_redirect(wp_get_raw_referer());
-            exit;
+            return false;
         }
         return true;
     } catch (Exception $e) {
@@ -1809,9 +1675,11 @@ function seur_get_order_weight($order) {
     if ($weight) {
         $order->update_meta_data('_seur_shipping_weight', $weight);
         $order->update_meta_data('_seur_cart_weight', $weight);
+        seur()->slog( "seur_get_order_weight() -> _seur_cart_weight: $weight - order:". $order->get_id());
         $order->save_meta_data();
         if ($label_ids) {
             update_post_meta($label_ids[0], '_seur_shipping_weight', $weight);
+            seur()->slog("seur_get_order_weight() -> _seur_shipping_weight: $weight - label:". $label_ids[0]);
         }
     }
     return $weight;
@@ -1861,4 +1729,38 @@ function validatePostcodes($postcodes) {
         }
     }
     return true;
+}
+
+if (get_option( 'seur_activate_returns_url_field' ) === '1') {
+
+// Añade un botón fijo en la página de detalle de cada pedido (Mi cuenta > Pedido > Ver pedido)
+    add_action('woocommerce_order_details_before_order_table', function ($order) {
+        if (!is_wc_endpoint_url('view-order')) return;
+
+        echo '<div style="margin-top:20px; text-align:right;">';
+        echo seur_get_returns_button();
+        echo '</div>';
+    }, 10, 1);
+
+/*# Botón ÚNICO en la página de LISTADO (Mi cuenta > Pedidos)
+    add_action('woocommerce_before_account_orders', function ($has_orders) {
+        if (!is_wc_endpoint_url('orders')) return;
+
+        echo '<div class="seur-orders-header" style="display:flex; justify-content:flex-end; margin: 0 0 16px 0;">';
+        echo seur_get_returns_button();
+        echo '</div>';
+    }, 10, 1);*/
+
+}
+
+function seur_get_returns_button(): string
+{
+    $url = 'https://www.seur.com/devoluciones/pages/devolucionInicio.do?id=0b57e23f-21ab-4d9c-8575-69b88e6c857f';
+    $seur_img = SEUR_PLUGIN_URL . 'assets/img/seur-devoluciones.png';
+
+    $button_html = '<a href="' . esc_url($url) . '" target="_blank" rel="noopener" style="background-color: white; padding: 2px; border-radius: 4px; border: 2px solid #005baa; display: inline-block;">';
+    $button_html .= '<img src="' . $seur_img . '" alt="' . esc_attr__('SEUR Devoluciones', 'seur') . '" />';
+    $button_html .= '</a>';
+
+    return $button_html;
 }
